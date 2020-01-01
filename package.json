@@ -1,0 +1,43 @@
+{
+  "name": "spa-wxjssdk-util",
+  "version": "0.1.0",
+  "description": "A simple library that helps to better use wxjssdk in SPA situation.",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liuyunzhuge/spa-wxjssdk-util"
+  },
+  "keywords": [
+    "spa-wxjssdk-util"
+  ],
+  "author": "liuyunzhuge",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/liuyunzhuge/spa-wxjssdk-util/issues"
+  },
+  "homepage": "https://github.com/liuyunzhuge/spa-wxjssdk-util#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.7.4",
+    "@babel/core": "^7.7.4",
+    "@babel/plugin-external-helpers": "^7.7.4",
+    "@babel/plugin-proposal-class-properties": "^7.7.4",
+    "@babel/plugin-transform-runtime": "^7.7.4",
+    "@babel/preset-env": "^7.7.4",
+    "rollup": "^1.27.8",
+    "rollup-plugin-babel": "^4.3.3",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-node-resolve": "^5.2.0",
+    "rollup-plugin-uglify": "^6.0.3"
+  },
+  "scripts": {
+    "compile": "rollup -c"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.7.4",
+    "wxjssdk-copy": "^1.4.1"
+  },
+  "peerDependencies": {
+    "wxjssdk-copy": "^1.4.1"
+  }
+}
