@@ -7,3 +7,5 @@
 npm install spa-wxjssdk-util --save
 npm install wxjssdk-copy --save
 ```
+
+试用2天之后，发现有一个用户还是出现了签名错误的问题，产生原因还在排查中。

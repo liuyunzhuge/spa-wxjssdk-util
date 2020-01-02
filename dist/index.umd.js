@@ -999,10 +999,7 @@
           logInfo.apply(void 0, toConsumableArray(logs));
         }
 
-        logInfo({
-          url: this.url || this.signData.url,
-          signData: this.signData
-        });
+        logInfo(this.signData || {});
         logGroupEnd();
       }
     }, {
@@ -1091,8 +1088,8 @@
           _this.signData = data;
 
           if (_this.url) {
-            // save url
-            _this.signData.url = _this.url;
+            // save sign url
+            _this.signData.signUrl = _this.url;
           } // wx.config is also asynchronous, need to deal with case that self has been canceled
           // use a queue to make serialized wx.config calls
 
@@ -1121,7 +1118,8 @@
   }
 
   var WX_CONFIG_CALLS = [];
-  var LAST_RESOLVED_CONFIG = {}; // wx.complete is not official
+  var LAST_RESOLVED_CONFIG = {};
+  var LAST_REJECTED_CONFIG = {}; // wx.complete is not official
   // it is added by wxjssdk-copy
 
   _1_4_1_wxjssdkCopy.complete(function (state, data) {
@@ -1139,6 +1137,7 @@
       task.resolve();
     } else {
       var error = new Error(data.errMsg);
+      LAST_REJECTED_CONFIG.signData = task.signData;
       task.reject(error, 'error occurs in wx.config:');
     } // this is not necessary~, I use it for some tests.
 
@@ -1195,7 +1194,7 @@
   }
 
   function checkSignDataValidState(signData) {
-    if (signData && LAST_RESOLVED_CONFIG && LAST_RESOLVED_CONFIG.timestamp === signData.timestamp && LAST_RESOLVED_CONFIG.signature === signData.signature && (Date.now() / 1000 | 0) - LAST_RESOLVED_CONFIG.signedAt <= WxjssdkUtil.defaults.signatureValidTime) {
+    if (signData && LAST_RESOLVED_CONFIG && LAST_RESOLVED_CONFIG.timestamp === signData.timestamp && LAST_RESOLVED_CONFIG.signature === signData.signature && (Date.now() / 1000 | 0) - LAST_RESOLVED_CONFIG.signedAt <= WxjssdkUtil.defaults.signExpiresIn) {
       return true;
     }
 
@@ -1234,15 +1233,19 @@
         var _this3 = this;
 
         var next;
+        var source;
 
         if (!IS_WECHAT) {
           next = Promise.reject(new Error('Non wechat client.'));
         } else if (this.signData) {
           if (checkSignDataValidState(this.signData)) {
+            source = 'checkSignDataValidState:true';
             next = Promise.resolve(this.signData);
           } else {
+            source = 'checkSignDataValidState:false';
             next = request(this.signData)["catch"](function (error) {
               if (errorOfInvalidSignature(error)) {
+                source = 'request(signData):invalid';
                 return request(null);
               }
 
@@ -1250,16 +1253,27 @@
             });
           }
         } else {
+          source = 'request(null)';
           next = request(null);
         }
 
-        next.then(function (res) {
+        return next.then(function (res) {
           _this3.signData = res;
           callback(_1_4_1_wxjssdkCopy);
+          return _1_4_1_wxjssdkCopy;
         })["catch"](function (error) {
-          callback(null);
+          callback();
 
           if (errorOfInvalidSignature(error)) {
+            WxjssdkUtil.defaults.onSignInvalid(error, {
+              source: source,
+              landingUrl: getLandingUrl(),
+              currentUrl: getHref(),
+              signData: LAST_REJECTED_CONFIG.signData
+            });
+          }
+
+          if (!WxjssdkUtil.defaults.ignoreRejectedState) {
             return Promise.reject(error);
           }
         });
@@ -1282,19 +1296,20 @@
     REJECTED: 2
   };
   var taskManager = new SignTaskManager(); // as official docs says, signature has an valid time, but we do not know how long it is, en......
-  // so signatureValidTime is not a reliable option
+  // so signExpiresIn is not a reliable option
 
   WxjssdkUtil.defaults = {
-    signatureValidTime: 3600,
+    ignoreRejectedState: true,
+    signExpiresIn: 3600,
     // avoid unnecessary sign task
     debug: false,
     // Directly used in `wx.config({debug:...})`
     jsApiList: [],
     // Directly used in `wx.config({jsApiList:...})`
-    request: null // A callback that should return a promise to provider other `wx.config` data
-
+    request: null,
+    // A callback that should return a promise to provider other `wx.config` data,
+    onSignInvalid: noop
   };
-  WxjssdkUtil.wx = _1_4_1_wxjssdkCopy;
 
   return WxjssdkUtil;
 
