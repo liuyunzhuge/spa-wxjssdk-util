@@ -15,6 +15,10 @@ function getLandingUrl () {
     return LANDING_URL
 }
 
+function getSecondaryLandingUrl () {
+    return SECONDARY_LANDING_URL
+}
+
 function logInfo (...args) {
     console.info(...args)
 }
@@ -23,7 +27,7 @@ function logGroup (...args) {
     console.group(`[${LOGGER}]`, ...args)
 }
 
-function logGroupEnd (...args) {
+function logGroupEnd () {
     console.groupEnd()
 }
 
@@ -35,11 +39,14 @@ function isMiniProgram () {
 // if it fails, fallback to use current page and retry;
 // other environment works in the opposite order.
 function getSignUrl (times) {
+    let urls
     if (isMiniProgram() || IS_IOS) {
-        return times === 1 ? getLandingUrl() : getHref()
+        urls = [getLandingUrl(), getSecondaryLandingUrl(), getHref()]
     } else {
-        return times === 1 ? getHref() : getLandingUrl()
+        urls = [getHref(), getLandingUrl(), getSecondaryLandingUrl()]
     }
+
+    return urls[times - 1]
 }
 
 class SignTask {
@@ -251,33 +258,37 @@ function errorOfInvalidSignature (error) {
 }
 
 function checkSignDataValidState (signData) {
-    if (signData && LAST_RESOLVED_CONFIG &&
+    return !!(
+        WxjssdkUtil.defaults.signExpiresIn !== false &&
+        signData && LAST_RESOLVED_CONFIG &&
         LAST_RESOLVED_CONFIG.timestamp === signData.timestamp &&
         LAST_RESOLVED_CONFIG.signature === signData.signature &&
         ((Date.now() / 1000 | 0) - LAST_RESOLVED_CONFIG.signedAt) <= WxjssdkUtil.defaults.signExpiresIn
-    ) {
-        return true
-    }
-
-    return false
+    )
 }
 
-function request (signData) {
+function request (signData, source, times) {
+    let curSignUrl = getSignUrl(times)
     return taskManager.create({
-        url: signData ? '' : getSignUrl(1),
+        url: signData ? '' : curSignUrl,
         signData: signData
     }).catch(error => {
         if (errorOfInvalidSignature(error)) {
-            // retry
-            return taskManager.create({
-                url: signData ? '' : getSignUrl(2),
-                signData: signData
-            })
+            let nextSignUrl = getSignUrl(times + 1)
+            while (nextSignUrl && nextSignUrl === curSignUrl) {
+                times += 1
+                nextSignUrl = getSignUrl(times + 1)
+            }
+            if (nextSignUrl) {
+                return request(signData, source, times + 1)
+            }
         }
 
         return Promise.reject(error)
     })
 }
+
+let SECONDARY_LANDING_URL = null
 
 class WxjssdkUtil {
     constructor () {
@@ -285,20 +296,25 @@ class WxjssdkUtil {
     }
 
     ready (callback) {
+        if (!SECONDARY_LANDING_URL) {
+            SECONDARY_LANDING_URL = getHref()
+        }
+        console.log(SECONDARY_LANDING_URL)
+
         let next
         let source
         if (!IS_WECHAT) {
             next = Promise.reject(new Error('Non wechat client.'))
         } else if (this.signData) {
             if (checkSignDataValidState(this.signData)) {
-                source = 'checkSignDataValidState:true'
+                source = 'resolve(signData)'
                 next = Promise.resolve(this.signData)
             } else {
-                source = 'checkSignDataValidState:false'
-                next = request(this.signData).catch(error => {
+                source = 'request(signData)'
+                next = request(this.signData, source, 1).catch(error => {
                     if (errorOfInvalidSignature(error)) {
-                        source = 'request(signData):invalid'
-                        return request(null)
+                        source = 'request(signData):failed'
+                        return request(null, source, 1)
                     }
 
                     return Promise.reject(error)
@@ -306,7 +322,7 @@ class WxjssdkUtil {
             }
         } else {
             source = 'request(null)'
-            next = request(null)
+            next = request(null, source, 1)
         }
 
         return next.then(res => {
