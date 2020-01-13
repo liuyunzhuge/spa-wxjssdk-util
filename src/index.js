@@ -41,9 +41,9 @@ function isMiniProgram () {
 function getSignUrl (times) {
     let urls
     if (isMiniProgram() || IS_IOS) {
-        urls = [getLandingUrl(), getSecondaryLandingUrl(), getHref()]
+        urls = [getLandingUrl(), getSecondaryLandingUrl(), getLandingUrl(), getHref()]
     } else {
-        urls = [getHref(), getLandingUrl(), getSecondaryLandingUrl()]
+        urls = [getHref(), getLandingUrl(), getHref()]
     }
 
     return urls[times - 1]
@@ -207,6 +207,7 @@ wx.complete((state, data) => {
         LAST_RESOLVED_CONFIG.signature = call.config.signature
         LAST_RESOLVED_CONFIG.timestamp = call.config.timestamp
         LAST_RESOLVED_CONFIG.signedAt = Date.now() / 1000 | 0
+        LAST_RESOLVED_CONFIG.signData = task.signData
         task.resolve()
     } else {
         let error = new Error(data.errMsg)
@@ -273,7 +274,7 @@ function request (signData, source, times) {
         url: signData ? '' : curSignUrl,
         signData: signData
     }).catch(error => {
-        if (errorOfInvalidSignature(error)) {
+        if (errorOfInvalidSignature(error) && !signData) {
             let nextSignUrl = getSignUrl(times + 1)
             while (nextSignUrl && nextSignUrl === curSignUrl) {
                 times += 1
@@ -299,12 +300,21 @@ class WxjssdkUtil {
         if (!SECONDARY_LANDING_URL) {
             SECONDARY_LANDING_URL = getHref()
         }
-        console.log(SECONDARY_LANDING_URL)
 
         let next
         let source
         if (!IS_WECHAT) {
             next = Promise.reject(new Error('Non wechat client.'))
+        } else if (IS_IOS && LAST_RESOLVED_CONFIG.signData && !this.signData) {
+            source = 'request(lastSignData)'
+            next = request(LAST_RESOLVED_CONFIG.signData, source, 1).catch(error => {
+                if (errorOfInvalidSignature(error)) {
+                    source = 'request(lastSignData):failed'
+                    return request(null, source, 1)
+                }
+
+                return Promise.reject(error)
+            })
         } else if (this.signData) {
             if (checkSignDataValidState(this.signData)) {
                 source = 'resolve(signData)'
@@ -362,7 +372,7 @@ const taskManager = new SignTaskManager()
 // so signExpiresIn is not a reliable option
 WxjssdkUtil.defaults = {
     ignoreRejectedState: true,
-    signExpiresIn: 3600, // avoid unnecessary sign task
+    signExpiresIn: 5400, // avoid unnecessary sign task
     debug: false, // Directly used in `wx.config({debug:...})`
     jsApiList: [], // Directly used in `wx.config({jsApiList:...})`
     request: null, // A callback that should return a promise to provider other `wx.config` data,
