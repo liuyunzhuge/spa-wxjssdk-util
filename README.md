@@ -66,6 +66,14 @@ SpaWxjssdkUtil.defaults.onSignInvalid = function (error, info) {
 
     签名失败的回调函数，可以利用它做一些数据上报。
 
+**注意**
+`request`返回的`promise`应该`resolve`以下的数据结构：
+```js
+appId: "..."
+nonceStr: "..."
+signature: "17001437758c36bbda4be3e0b4b4dffaf8ce3803"
+timestamp: 1581129406
+```
 
 页面级使用：
 ```js
