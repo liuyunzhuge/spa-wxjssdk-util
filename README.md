@@ -66,6 +66,7 @@ SpaWxjssdkUtil.defaults.onSignInvalid = function (error, info) {
 
     签名失败的回调函数，可以利用它做一些数据上报。
 
+
 页面级使用：
 ```js
 let wxjssdkUtil = new SpaWxjssdkUtil()
